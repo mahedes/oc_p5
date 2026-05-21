@@ -1,0 +1,25 @@
+services:
+
+  # Conteneur MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb_data:/data/db      # volume pour persister la base de données
+
+  # Conteneur qui exécute la migration
+  migration:
+    build: .                       # construit l'image depuis le Dockerfile
+    container_name: migration
+    depends_on:
+      - mongodb                    # attend que MongoDB soit démarré
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/   # on pointe vers le conteneur mongodb
+    volumes:
+      - ./data:/app/data           # volume pour accéder au CSV depuis le conteneur
+    command: python migrate.py
+
+volumes:
+  mongodb_data:                    # volume nommé pour les données MongoDB
