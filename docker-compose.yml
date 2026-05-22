@@ -6,8 +6,12 @@ services:
     container_name: mongodb
     ports:
       - "27018:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
     volumes:
       - mongodb_data:/data/db      # volume pour persister la base de données
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js  # script de création des utilisateurs
 
   # Conteneur qui exécute la migration
   migration:
@@ -16,10 +20,12 @@ services:
     depends_on:
       - mongodb                    # attend que MongoDB soit démarré
     environment:
-      - MONGO_URI=mongodb://mongodb:27017/   # on pointe vers le conteneur mongodb
+      - MONGO_URI=mongodb://userAdmin:password123@mongodb:27017/healthcare_db   # on pointe vers le conteneur mongodb
     volumes:
       - ./data:/app/data           # volume pour accéder au CSV depuis le conteneur
     command: python migrate.py
 
 volumes:
   mongodb_data:                    # volume nommé pour les données MongoDB
+
+

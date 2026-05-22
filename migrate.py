@@ -2,8 +2,9 @@ import pandas as pd
 from pymongo import MongoClient
 from test_migration import run_tests  
 import os
+import time
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27018/")
 CSV_PATH = "data/healthcare_dataset.csv"
 
 def migrate():
@@ -40,8 +41,9 @@ def migrate():
     documents = df.to_dict(orient="records")
 
     # 5. Connexion à MongoDB
-    #client = MongoClient("mongodb://localhost:27017/")  # connexion au serveur MongoDB en local
-    client = MongoClient(MONGO_URI)  # connexion au serveur MongoDB depuis Docker
+
+    #client = MongoClient("mongodb://localhost:27017/") # connexion au serveur MongoDB en local
+    client = MongoClient(MONGO_URI)                     # connexion au serveur MongoDB depuis Docker
     col = client["healthcare_db"]["patients"]           # sélection de la base "healthcare_db" et de la collection "patients"
 
     # 6. Suppression de la collection si elle existe déjà (évite les doublons si on relance le script)
@@ -68,9 +70,6 @@ def migrate():
     col.create_index("test_results")
 
     print(f"{len(documents)} documents insérés avec succès.")
-
-    # 9. Fermeture de la connexion
-    client.close()
 
 if __name__ == "__main__":
     migrate()
