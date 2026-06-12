@@ -38,6 +38,7 @@ healthcare-migration/
 ├── Dockerfile
 ├── docker compose.yml
 ├── init-mongo.js
+├── .env
 └── README.md
 ```
 
@@ -68,12 +69,12 @@ healthcare-migration/
 
 ---
 
-## Index créés
+## Indexs créés
 
 Un index est créé sur chaque champ de la collection afin de maximiser les performances de recherche sur n'importe quelle colonne.
 
-> **Note** : indexer tous les champs consomme plus de mémoire et ralentit légèrement les insertions.
-> En production, on limiterait les index aux champs les plus interrogés (`name`, `medical_condition`, `doctor`, `date_of_admission`, `billing_amount`).
+> **Note** : indexer tous les champs consomme plus de mémoire et peut ralentit légèrement les insertions.
+> La création d'index a été limité à 5 (`name`, `age`, `date_of_admission`, `doctor`, `hospital`). Il est possible d'adapter la sélection des indexs suivant les besoins métiers.
 
 ---
 
@@ -122,7 +123,7 @@ docker compose logs mongodb
 ### Connexion depuis MongoDB Compass
 
 ```
-mongodb://admin:admin123@localhost:27018/?authSource=admin
+mongodb://identifiant:motdepasse@localhost:27018/?authSource=admin
 ```
 
 ---

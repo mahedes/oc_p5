@@ -1,19 +1,18 @@
 // Ce script est exécuté automatiquement au premier démarrage de MongoDB
-
-db = db.getSiblingDB("healthcare_db");  // sélectionne la base healthcare_db
+db = db.getSiblingDB(process.env.MONGO_DB);
 
 // Utilisateur pour la migration (lecture + écriture)
 db.createUser({
-  user: "userAdmin",
-  pwd: "password123",
-  roles: [{ role: "readWrite", db: "healthcare_db" }]
+  user: process.env.MONGO_USER_ADMIN_ID,
+  pwd: process.env.MONGO_USER_ADMIN_PW,
+  roles: [{ role: "readWrite", db: process.env.MONGO_DB }]
 });
 
 // Utilisateur pour les analystes (lecture seule)
 db.createUser({
-  user: "userVisitor",
-  pwd: "password456",
-  roles: [{ role: "read", db: "healthcare_db" }]
+  user: process.env.MONGO_USER_VISITOR_ID,
+  pwd: process.env.MONGO_USER_VISITOR_PW,
+  roles: [{ role: "read", db: process.env.MONGO_DB }]
 });
 
 print("Utilisateurs créés avec succès.");
