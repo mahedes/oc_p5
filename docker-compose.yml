@@ -6,34 +6,56 @@ services:
     container_name: mongodb
     ports:
       - "27018:27017"
-
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_ID}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PW}
-
-      MONGO_DB: ${MONGO_DB}
-
-      MONGO_USER_ADMIN_ID: ${MONGO_USER_ADMIN_ID}
-      MONGO_USER_ADMIN_PW: ${MONGO_USER_ADMIN_PW}
-
-      MONGO_USER_VISITOR_ID: ${MONGO_USER_VISITOR_ID}
-      MONGO_USER_VISITOR_PW: ${MONGO_USER_VISITOR_PW}
-
+      MONGO_INITDB_ROOT_USERNAME_FILE: /run/secrets/mongo_root_user
+      MONGO_INITDB_ROOT_PASSWORD_FILE: /run/secrets/mongo_root_pw
+    secrets:
+      - mongo_root_user
+      - mongo_root_pw
     volumes:
-      - mongodb_data:/data/db      # volume pour persister la base de données
-      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js  # script de création des utilisateurs
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s      # vérifie toutes les 5 secondes
+      timeout: 5s       # abandon si pas de réponse en 5s
+      retries: 10       # 10 tentatives avant de déclarer unhealthy
+      start_period: 10s # attend 10s avant de commencer les checks
 
-  # Conteneur qui exécute la migration
+  # Conteneur qui initialise les utilisateurs puis exécute la migration
   migration:
     build: .
     container_name: migration
     depends_on:
-      - mongodb
-    environment:
-      MONGO_URI: mongodb://${MONGO_USER_ADMIN_ID}:${MONGO_USER_ADMIN_PW}@mongodb:27017/${MONGO_DB}
+      mongodb:
+        condition: service_healthy  # attend que le healthcheck soit OK
+    secrets:
+      - mongo_root_user
+      - mongo_root_pw
+      - mongo_db
+      - mongo_user_admin_id
+      - mongo_user_admin_pw
+      - mongo_user_visitor_id
+      - mongo_user_visitor_pw
     volumes:
       - ./data:/app/data
-    command: python migrate.py
+    command: >
+      sh -c "python init_mongo.py && python migrate.py"
 
 volumes:
-  mongodb_data:                    # volume nommé pour les données MongoDB
+  mongodb_data:
+
+secrets:
+  mongo_root_user:
+    file: ./secrets/mongo_root_user.txt
+  mongo_root_pw:
+    file: ./secrets/mongo_root_pw.txt
+  mongo_db:
+    file: ./secrets/mongo_db.txt
+  mongo_user_admin_id:
+    file: ./secrets/mongo_user_admin_id.txt
+  mongo_user_admin_pw:
+    file: ./secrets/mongo_user_admin_pw.txt
+  mongo_user_visitor_id:
+    file: ./secrets/mongo_user_visitor_id.txt
+  mongo_user_visitor_pw:
+    file: ./secrets/mongo_user_visitor_pw.txt

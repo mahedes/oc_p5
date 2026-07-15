@@ -31,15 +31,28 @@ L'entreprise a proposé une migration vers une solution Big Data scalable horizo
 ```
 healthcare-migration/
 ├── data/
-│   └── healthcare_dataset.csv
-├── migrate.py
-├── test_migration.py
-├── requirements.txt
+│   └── healthcare_dataset.csv (fichier CSV fourni par le client)
+│   └── doublons_detectes.csv
+├── secrets/
+│   └── mongo_db.txt
+│   └── mongo_root_pw.txt
+│   └── mongo_root_user.txt
+│   └── mongo_user_admin_id.txt
+│   └── mongo_user_admin_pw.txt
+│   └── mongo_user_visitor_id.txt
+│   └── mongo_user_visitor_pw.txt
+├── .gitignore
+├── clean_csv.py
+├── docker-compose.yml
 ├── Dockerfile
-├── docker compose.yml
-├── init-mongo.js
-├── .env
-└── README.md
+├── init_mongo.py
+├── migrate.py
+├── README.md
+├── requirements.txt
+├── test_before_migration.py
+└── test_after_migration.py
+
+
 ```
 
 ---
@@ -69,25 +82,30 @@ healthcare-migration/
 
 ---
 
-## Indexs créés
+## Index créés
 
-Un index est créé sur chaque champ de la collection afin de maximiser les performances de recherche sur n'importe quelle colonne.
+Les index ont été créés sur les champs les plus susceptibles d'être utilisés dans des recherches métier :
 
-> **Note** : indexer tous les champs consomme plus de mémoire et peut ralentit légèrement les insertions.
-> La création d'index a été limité à 5 (`name`, `age`, `date_of_admission`, `doctor`, `hospital`). Il est possible d'adapter la sélection des indexs suivant les besoins métiers.
+- `name` : recherche d'un patient.
+- `age` : filtrage par tranche d'âge.
+- `date_of_admission` : historique des admissions.
+- `doctor` : patients suivis par un médecin.
+- `hospital` : patients d'un établissement.
+
+Tous les champs n'ont volontairement pas été indexés afin de limiter la consommation mémoire et le coût des opérations d'insertion.
 
 ---
 
 ## Système d'authentification et rôles utilisateurs
 
 L'authentification est activée sur MongoDB via `--auth` (par défaut). 
-Trois utilisateurs sont créés automatiquement au démarrage par `init-mongo.js` :
+Des utilisateurs sont créés automatiquement au démarrage par `init_mongo.py` :
 
 | Utilisateur      | Rôle        | Droits                        | Utilisé par         |
 |-----------------|-------------|-------------------------------|---------------------|
-| `admin`         | root        | Accès total                   | Administrateur      |
-| `userAdmin`| readWrite   | Lire + écrire les données     | fichier `migrate.py`        |
-| `userVisitor`  | read        | Lire les données uniquement   | Médecins/analystes  |
+| `root_user`         | root        | Accès total                   | Administrateur      |
+| `admin_user`| readWrite   | Lire + écrire les données     | fichier `migrate.py`        |
+| `visitor_user`  | read        | Lire les données uniquement   | Médecins/analystes  |
 
 ---
 
@@ -119,13 +137,6 @@ docker compose logs migration
 # Voir les logs de MongoDB
 docker compose logs mongodb
 ```
-
-### Connexion depuis MongoDB Compass
-
-```
-mongodb://identifiant:motdepasse@localhost:27018/?authSource=admin
-```
-
 ---
 
 ## Commandes utiles
@@ -141,30 +152,127 @@ mongodb://identifiant:motdepasse@localhost:27018/?authSource=admin
 
 ---
 
+### Connexion depuis MongoDB Compass
+
+```
+mongodb://identifiant:motdepasse@localhost:27018/indique_ici_nom_mongo_db?authSource=indique_ici_nom_mongo_db
+```
+
+## Création des secrets Docker
+
+Le projet utilise les secrets Docker Compose afin d'éviter de stocker les identifiants directement dans le fichier `docker-compose.yml`.
+
+Avant de lancer les conteneurs, créer les fichiers secrets suivants :
+
+secrets/
+├── mongo_db.txt
+├── mongo_root_pw.txt
+├── mongo_root_user.txt
+├── mongo_user_admin_id.txt
+├── mongo_user_admin_pw.txt
+├── mongo_user_visitor_id.txt
+└── mongo_user_visitor_pw.txt
+
+Note: Pour installer ce prototype, vous pouvez utiliser les identifiants et mots de passe de démonstration fournis ci-dessous pour faciliter l'installation. Ces identifiants seront à modifier par la suite pour sécuriser l'accès de l'application.
+Ces valeurs sont uniquement destinées à un environnement de démonstration.
+Elles ne doivent pas être utilisées en production.
+
+```bash
+mkdir -p secrets
+
+echo "healthcare_db" > secrets/mongo_db.txt
+echo "root_user" > secrets/mongo_root_user.txt
+echo "root_password" > secrets/mongo_root_pw.txt
+
+echo "admin_user" > secrets/mongo_user_admin_id.txt
+echo "admin_password" > secrets/mongo_user_admin_pw.txt
+
+echo "visitor_user" > secrets/mongo_user_visitor_id.txt
+echo "visitor_password" > secrets/mongo_user_visitor_pw.txt
+
+```
+
+---
+## Architecture de la migration
+
+CSV
+ │
+ ▼
+Tests avant migration
+ ├── valeurs manquantes
+ ├── doublons
+ ├── types
+ ├── cohérence des dates
+ └── cohérence des âges
+ │
+ ▼
+Nettoyage automatique
+ ├──  suppression des doublons
+ │
+ ▼
+Migration MongoDB
+ ├── backup de la collection
+ ├── suppression de l'ancienne collection si existante
+ ├── insertion
+ ├── création des index
+ ├── rollback en cas d'erreur
+ │
+ ▼
+Tests après migration
+ ├── nombre de documents
+ ├── présence des champs
+ ├── types
+ ├── doublons
+ └── valeurs manquantes
+
+
 ## Logique de migration (`migrate.py`)
 
-1. **Chargement** du CSV avec pandas
-2. **Renommage** des colonnes en snake_case (`Blood Type` → `blood_type`)
-3. **Typage** explicite des colonnes (`age` en int, `billing_amount` en float, dates en datetime)
-4. **Conversion** de chaque ligne en document Python (dict)
-5. **Suppression** de la collection existante (évite les doublons si on relance le script)
-6. **Insertion** en masse avec `insert_many()`
-7. **Indexation** de tous les champs
-8. **Tests d'intégrité** automatiques via `run_tests()`
+1. Chargement du fichier CSV.
+2. Validation des données (tests avant migration).
+3. Nettoyage automatique des doublons détectés.
+4. Renommage des colonnes en `snake_case`.
+5. Conversion des types (`int`, `float`, `datetime`).
+6. Sauvegarde de la collection MongoDB existante (`patients_backup`).
+7. Suppression de la collection principale.
+8. Insertion en masse (`insert_many`).
+9. Création des index.
+10. En cas d'erreur, restauration automatique depuis la sauvegarde (rollback).
+11. Exécution des tests après migration.
+
 
 ---
 
-## Tests d'intégrité (`test_migration.py`)
+## Sauvegarde et rollback
 
-Les tests sont exécutés automatiquement à la fin de chaque migration en deux temps :
+Avant chaque migration :
+
+- la collection `patients` est copiée dans `patients_backup`.
+
+En cas d'échec :
+
+- la collection principale est supprimée ;
+- la sauvegarde est automatiquement restaurée.
+
+En cas de succès :
+
+- la collection de sauvegarde est supprimée.
+
+---
+
+## Tests d'intégrité (`test_before_migration.py`, `test_after_migration.py`)
+
+Les tests sont exécutés automatiquement avant et après chaque migration :
 
 ### Avant la migration — sur le CSV
 
-| Test                          | Description                                           |
-|------------------------------|-------------------------------------------------------|
-| `test_csv_valeurs_manquantes` | Vérifie qu'aucune colonne ne contient de valeur nulle |
-| `test_csv_doublons`           | Vérifie l'absence de lignes entièrement dupliquées    |
-| `test_csv_types`              | Vérifie que les colonnes numériques sont bien typées  |
+| Test                          | Description                                           | Test bloquant |
+|------------------------------|--------------------------------------------------------|---------------|
+| `test_csv_valeurs_manquantes` | Vérifie qu'aucune colonne ne contient de valeur nulle | OUI           |
+| `test_csv_doublons`           | Vérifie l'absence de lignes entièrement dupliquées    | NON (contrôle de validation)           |
+| `test_csv_types`              | Vérifie que les colonnes numériques sont bien typées  | OUI           |
+| `test_csv_coherence_dates`    | Vérifie le format des dates et que la date de sortie est postérieure à la date d'admission  | OUI           |
+| `test_csv_coherence_age`    | Vérifie que les âges sont compris entre 0 et 120 ans  | NON (simple alerte)          |
 
 ### Après la migration — sur MongoDB
 
@@ -172,7 +280,7 @@ Les tests sont exécutés automatiquement à la fin de chaque migration en deux 
 |---------------------------|-----------------------------------------------------------|
 | `test_count`              | Vérifie que le nombre de documents = nombre de lignes CSV |
 | `test_champs_presents`    | Vérifie la présence de tous les champs dans chaque document |
-| `test_types`              | Vérifie le type des champs critiques                      |
+| `test_types`              | Vérifie que les documents sont bien enregistrés avec les types attendus                      |
 | `test_doublons`           | Vérifie l'absence de documents entièrement dupliqués      |
 | `test_valeurs_manquantes` | Vérifie qu'aucun champ ne contient de valeur nulle ou vide |
 ````
