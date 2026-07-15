@@ -111,18 +111,6 @@ Des utilisateurs sont créés automatiquement au démarrage par `init_mongo.py` 
 
 ## Utilisation
 
-### En local (sans Docker)
-
-```bash
-# 1. Créer l'environnement virtuel
-python -m venv venv
-source venv/bin/activate        # Windows : venv\Scripts\activate
-
-# 2. Installer les dépendances
-pip install -r requirements.txt
-
-# 3. Lancer la migration
-python migrate.py
 ```
 
 ### Avec Docker
@@ -164,6 +152,7 @@ Le projet utilise les secrets Docker Compose afin d'éviter de stocker les ident
 
 Avant de lancer les conteneurs, créer les fichiers secrets suivants :
 
+```
 secrets/
 ├── mongo_db.txt
 ├── mongo_root_pw.txt
@@ -172,7 +161,7 @@ secrets/
 ├── mongo_user_admin_pw.txt
 ├── mongo_user_visitor_id.txt
 └── mongo_user_visitor_pw.txt
-
+```
 Note: Pour installer ce prototype, vous pouvez utiliser les identifiants et mots de passe de démonstration fournis ci-dessous pour faciliter l'installation. Ces identifiants seront à modifier par la suite pour sécuriser l'accès de l'application.
 Ces valeurs sont uniquement destinées à un environnement de démonstration.
 Elles ne doivent pas être utilisées en production.
@@ -195,6 +184,7 @@ echo "visitor_password" > secrets/mongo_user_visitor_pw.txt
 ---
 ## Architecture de la migration
 
+```
 CSV
  │
  ▼
@@ -224,7 +214,7 @@ Tests après migration
  ├── types
  ├── doublons
  └── valeurs manquantes
-
+```
 
 ## Logique de migration (`migrate.py`)
 
