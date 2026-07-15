@@ -1,5 +1,5 @@
 __pycache__/
-data/
+data/healthcare_dataset.csv
 *.DS_Store
 venv
-# .env
+secrets/ 

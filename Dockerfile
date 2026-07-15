@@ -9,5 +9,8 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 # Copie des scripts
+COPY init_mongo.py .
 COPY migrate.py .
-COPY test_migration.py .
+COPY clean_csv.py .
+COPY test_before_migration.py .
+COPY test_after_migration.py .
