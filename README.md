@@ -111,11 +111,9 @@ Des utilisateurs sont créés automatiquement au démarrage par `init_mongo.py` 
 
 ## Utilisation
 
-```
-
 ### Avec Docker
 
-```bash
+```
 # Lancer tous les conteneurs
 docker compose up --build
 
@@ -137,7 +135,7 @@ docker compose logs mongodb
 | `docker compose down` | Arrête les conteneurs |
 | `docker compose down -v` | Arrête et supprime les volumes |
 | `docker compose build --no-cache` | Reconstruit sans cache |
-
+| `docker compose up` | Lance les conteneurs sans reconstruire l'image |
 ---
 
 ### Connexion depuis MongoDB Compass
@@ -189,19 +187,20 @@ CSV
  │
  ▼
 Tests avant migration
- ├── valeurs manquantes
- ├── doublons
- ├── types
- ├── cohérence des dates
- └── cohérence des âges
+ ├── Absence de valeurs manquantes 
+ ├── Typage correct
+ ├── Cohérence des dates
+ ├── Cohérence des âges
+ ├── Absence de doublons
  │
  ▼
 Nettoyage automatique
- ├──  suppression des doublons
+ ├──  sauvegarde des doublons dans un fichier CSV secondaire
+ ├──  suppression des doublons du fichier CSV principale
  │
  ▼
 Migration MongoDB
- ├── backup de la collection
+ ├── sauvegarde de la collection
  ├── suppression de l'ancienne collection si existante
  ├── insertion
  ├── création des index
@@ -209,18 +208,18 @@ Migration MongoDB
  │
  ▼
 Tests après migration
- ├── nombre de documents
- ├── présence des champs
- ├── types
- ├── doublons
- └── valeurs manquantes
+ ├── Nombre de documents de la base identique au nombre de ligne du fichier CSV
+ ├── Présence des champs
+ ├── Types correcte
+ ├── Absence de doublons
+ └── Absence de valeurs manquantes
 ```
 
 ## Logique de migration (`migrate.py`)
 
 1. Chargement du fichier CSV.
-2. Validation des données (tests avant migration).
-3. Nettoyage automatique des doublons détectés.
+2. Validation des données (tests avant migration depuis `test_before_migration.py`).
+3. Nettoyage et sauvegarde automatique des doublons détectés depuis `clean_csv.py`
 4. Renommage des colonnes en `snake_case`.
 5. Conversion des types (`int`, `float`, `datetime`).
 6. Sauvegarde de la collection MongoDB existante (`patients_backup`).
@@ -228,7 +227,7 @@ Tests après migration
 8. Insertion en masse (`insert_many`).
 9. Création des index.
 10. En cas d'erreur, restauration automatique depuis la sauvegarde (rollback).
-11. Exécution des tests après migration.
+11. Exécution des tests après migration (depuis `test_after_migration.py`)
 
 
 ---
@@ -244,10 +243,6 @@ En cas d'échec :
 - la collection principale est supprimée ;
 - la sauvegarde est automatiquement restaurée.
 
-En cas de succès :
-
-- la collection de sauvegarde est supprimée.
-
 ---
 
 ## Tests d'intégrité (`test_before_migration.py`, `test_after_migration.py`)
@@ -259,18 +254,25 @@ Les tests sont exécutés automatiquement avant et après chaque migration :
 | Test                          | Description                                           | Test bloquant |
 |------------------------------|--------------------------------------------------------|---------------|
 | `test_csv_valeurs_manquantes` | Vérifie qu'aucune colonne ne contient de valeur nulle | OUI           |
-| `test_csv_doublons`           | Vérifie l'absence de lignes entièrement dupliquées    | NON (contrôle de validation)           |
+| `test_csv_doublons`           | Vérifie l'absence de lignes entièrement dupliquées    | OUI si échec après nettoyage           |
 | `test_csv_types`              | Vérifie que les colonnes numériques sont bien typées  | OUI           |
 | `test_csv_coherence_dates`    | Vérifie le format des dates et que la date de sortie est postérieure à la date d'admission  | OUI           |
 | `test_csv_coherence_age`    | Vérifie que les âges sont compris entre 0 et 120 ans  | NON (simple alerte)          |
 
 ### Après la migration — sur MongoDB
 
-| Test                       | Description                                               |
-|---------------------------|-----------------------------------------------------------|
-| `test_count`              | Vérifie que le nombre de documents = nombre de lignes CSV |
-| `test_champs_presents`    | Vérifie la présence de tous les champs dans chaque document |
-| `test_types`              | Vérifie que les documents sont bien enregistrés avec les types attendus                      |
-| `test_doublons`           | Vérifie l'absence de documents entièrement dupliqués      |
-| `test_valeurs_manquantes` | Vérifie qu'aucun champ ne contient de valeur nulle ou vide |
+| Test                      | Description                                               | Test bloquant |
+|---------------------------|-----------------------------------------------------------|----|
+| `test_count`              | Vérifie que le nombre de documents = nombre de lignes CSV | NON |
+| `test_champs_presents`    | Vérifie la présence de tous les champs dans chaque document | NON |
+| `test_types`              | Vérifie que les documents sont bien enregistrés avec les types attendus                      | NON |
+| `test_doublons`           | Vérifie l'absence de documents entièrement dupliqués      | NON |
+| `test_valeurs_manquantes` | Vérifie qu'aucun champ ne contient de valeur nulle ou vide | NON |
 ````
+````
+
+### Exemple d'améliorations possibles
+
+- Dans le cadre des tests avant migration, compléter le message d'alerte du test vérifiant que les dates sont non parsables en indiquant l'index (équivament à la ligne dans le fichier CSV) de la ou des donnée(s) problématique(s)
+- Isoler toutes les lignes problématiques dans un fichier CSV et les exclure du dataframe pour toutes les problématiques détectées par les tests avant migration (valeurs manquantes, problèmes de type, etc...) en plus des valeurs en doublons. Possibilité de créer une interface pour gérer les données problématiques manuellement.
+- Si un test après migration ne passe pas, proposer à l'utilisateur un retour en arrière (roolback) via un prompt ou autres.

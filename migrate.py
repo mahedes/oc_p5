@@ -49,10 +49,10 @@ def rollback(col, col_backup):
         print("[ROLLBACK] Collection temporaire vide, collection principale laissée vide.")
     print("============ ROLLBACK EFFECTUÉ ============")
 
-def clean_backup(col_backup):
-    # Supprime la collection temporaire après une migration réussie
-    col_backup.drop()
-    print("[CLEAN] Collection temporaire supprimée.")
+# def clean_backup(col_backup):
+#     # Supprime la collection temporaire après une migration réussie
+#     col_backup.drop()
+#     print("[CLEAN] Collection temporaire supprimée.")
 
 #----------------------
 
@@ -123,7 +123,7 @@ def migrate(df_clean):
 
     except Exception as e:
         print(f"[ERREUR] Migration échouée : {e}")
-        # Vide patients et restaure le contenu de patients_backup. Appelé automatiquement dans le except si la migration plante.
+        # Vide patients et restaure le contenu de patients_backup. Appelé automatiquement dans le except si la migration échoue.
         rollback(col, col_backup)
         client.close()
         raise  # relève l'erreur pour stopper le script
